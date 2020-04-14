@@ -62,18 +62,13 @@ MyGLCanvas::~MyGLCanvas() {
 glm::vec3 MyGLCanvas::generateRay(int pixelX, int pixelY) {
 	glm::vec4 lookAtPoint(-1.0f + 2.0f * (float)pixelX / w(), 1.0f - 2.0f * (float)pixelY / h(), -1.0f, 1.0f);
 
-	glm::vec3 ep = getEyePoint();
-	glm::vec4 eyePoint(ep.x, ep.y, ep.z, 1.0f);
+	glm::vec4 eyePoint(getEyePoint(), 1.0f);
 
 	glm::mat4 invMat = camera.getInverseModelViewMatrix() * camera.getInverseScaleMatrix();
-
-	cerr << lookAtPoint << " ";
 
 	// invMat used to convert the points to object space in my(Danielle's) A4 implementation 
 	lookAtPoint = invMat * lookAtPoint;
 	eyePoint = invMat * eyePoint;
-
-	cerr << lookAtPoint << " " << eyePoint << endl;
 
 	glm::vec3 ray = lookAtPoint - eyePoint;
 
@@ -109,10 +104,14 @@ glm::vec3 MyGLCanvas::getIsectPointWorldCoord(glm::vec3 eye, glm::vec3 ray, floa
 	(2) OR, the "t" value which is the distance from the origin of the ray to the (nearest) intersection point on the sphere
 */
 double MyGLCanvas::intersect(glm::vec3 eyePointP, glm::vec3 rayV, glm::mat4 transformMatrix) {
-	// glm::vec3 eyeObject = transformMatrix * glm::vec4(eyePointP, 1.0);
-	// glm::vec3 rayObject = transformMatrix * glm::vec4(rayV, 0.0);
-	glm::vec3 eyeObject = eyePointP;
-	glm::vec3 rayObject = rayV;
+	cerr << transformMatrix << endl;
+
+	transformMatrix = glm::inverse(transformMatrix);
+
+	glm::vec3 eyeObject = transformMatrix * glm::vec4(eyePointP, 1.0);
+	glm::vec3 rayObject = transformMatrix * glm::vec4(rayV, 0.0);
+	//glm::vec3 eyeObject = eyePointP;
+	//glm::vec3 rayObject = rayV;
 
 	double A = glm::dot(rayObject, rayObject);
 	double B = 2.0 * glm::dot(eyeObject, rayObject);
@@ -190,7 +189,12 @@ void MyGLCanvas::drawScene() {
 	glLoadMatrixf(glm::value_ptr(camera.getModelViewMatrix()));
 
 	if (castRay == true) {
-		glm::vec3 eyePointP = getEyePoint();
+		
+		// And here lies the problem: getEyePoint returns in camera space, but we want world space now
+		//glm::vec3 eyePointP = getEyePoint();
+		glm::vec3 eyePointP(0, 0, 3);
+
+
 		glm::vec3 rayV = generateRay(mouseX, mouseY);
 		glm::vec3 sphereTransV(spherePosition[0], spherePosition[1], spherePosition[2]);
 
@@ -228,6 +232,7 @@ void MyGLCanvas::drawScene() {
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
 	glPushMatrix();
+		//glRotatef(90, 0, 1, 0);
 		glRotatef(90, 0, 1, 0);
 		myObject->drawTexturedSphere();
 	glPopMatrix();
@@ -262,7 +267,19 @@ int MyGLCanvas::handle(int e) {
 			printf("drag and move\n");
 			//TODO: compute the new spherePosition as you drag your mouse. spherePosition represents the coordinate for the center of the sphere
 			//HINT: use the old t value (computed from when you first intersect the sphere (before dragging starts)) to determine the new spherePosition
-			spherePosition;
+			
+			glm::vec3 eyePointP(0, 0, 3);
+			glm::vec3 rayV = generateRay(mouseX, mouseY);
+			
+			glm::vec3 isectPointWorldCoord = getIsectPointWorldCoord(eyePointP, rayV, oldT);
+
+			glm::vec3 transWorld = isectPointWorldCoord - oldIsectPoint;
+
+			oldIsectPoint = isectPointWorldCoord;
+			
+			//cerr << transWorld << endl;
+			
+			spherePosition = transWorld + spherePosition;
 		}
 		return (1);
 	case FL_MOVE:
@@ -280,7 +297,8 @@ int MyGLCanvas::handle(int e) {
 		else if ((Fl::event_button() == FL_RIGHT_MOUSE) && (drag == false)) { //right mouse click -- dragging
 			//this code is run when the dragging first starts (i.e. the first frame). 
 			//it stores a bunch of values about the sphere's "original" position and information
-			glm::vec3 eyePointP = getEyePoint();
+			//glm::vec3 eyePointP = getEyePoint();
+			glm::vec3 eyePointP(0, 0, 3);
 			glm::vec3 rayV = generateRay(mouseX, mouseY);
 			glm::vec3 sphereTransV(spherePosition[0], spherePosition[1], spherePosition[2]);
 			float t = intersect(eyePointP, rayV, glm::translate(glm::mat4(1.0), sphereTransV));
